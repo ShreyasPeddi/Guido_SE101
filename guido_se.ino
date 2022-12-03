@@ -1,6 +1,7 @@
 //imports
 #include <AFMotor.h>
 #include <Servo.h>
+#include <NewPing.h>
 
 //declaring objects
 //DC motor objects
@@ -8,25 +9,34 @@ AF_DCMotor rf(1);
 AF_DCMotor lf(2);
 AF_DCMotor rb(4);
 AF_DCMotor lb(3);
+AF_DCMotor fan(5);
 
 //Servo motor object
 Servo myServo;
 
 //initializing variables
 //controlling speed
-byte motorSpeed = 55;
-int motorOffset = 10;
-int turnSpeed = 50;
+byte motorSpeed = 80;
+int motorOffset = 15;
+int turnSpeed = 70;
 
 //controlling sensor signals, distance, and time
-byte trig = 1;                                               //pin that sends the signal from ultrasonic sensor
-byte echo = 0;                                               //pin that recieves the signal from ultrasonic sensor
+uint8_t trig = A1;                                               //pin that sends the signal from ultrasonic sensor
+uint8_t echo = A0;                                              //pin that recieves the signal from ultrasonic sensor
 byte maxDist = 150;                                          //objects whose distance is more than maxDist will not be detected
 byte stopDist = 50;                                          //minimum distance from an object to stop
+byte stopGarbageDistance = 25;
 float maxTime = 2 * (maxDist + 10) / 100 / 340 * 1000000;    //time between signal is sent and received
+
+//for garbage detection
+uint8_t garbage_trig = A4;                                               //pin that sends the signal from ultrasonic sensor
+uint8_t garbage_echo = A5;                                              //pin that recieves the signal from ultrasonic sensor
 
 //put your setup code here, to run once:
 void setup() {
+
+  Serial.begin(9600);
+
   //setting speed of motors
   rf.setSpeed(motorSpeed);
   rb.setSpeed(motorSpeed);  
@@ -42,11 +52,18 @@ void setup() {
   //setup servo
   myServo.attach(10);
   pinMode(trig, OUTPUT);
-  pinMode(echo, OUTPUT);
+  pinMode(echo, INPUT);
+
+  pinMode(garbage_trig, OUTPUT);
+  pinMode(garbage_echo, INPUT);
+
+  //forward();
+  //delay(1000);
 }
 
 //calculates the distance to an object
 int getDistance() {
+  //Serial.print(10);
   unsigned long pulseTime;                      //time taken for the pulse to go back and forth
   int dist;                                     //stores distance
 
@@ -55,6 +72,22 @@ int getDistance() {
   digitalWrite(trig, LOW);                      //deactivate the trig echo pin (input)
 
   pulseTime = pulseIn(echo, HIGH, maxTime);     //reads a pulse (either HIGH or LOW) on echo. Returns the length of the pulse in microseconds
+  dist = (float)pulseTime * 340 / 2 / 10000;    //calculate the object distance based on the pulse time
+
+  return dist;
+}
+
+//calculates the distance to an object (from garbage sensor)
+int getGarbageDistance() {
+  //Serial.print(10);
+  unsigned long pulseTime;                      //time taken for the pulse to go back and forth
+  int dist;                                     //stores distance
+
+  digitalWrite(garbage_trig, HIGH);                     //activates the trig echo pin (input) 
+  delayMicroseconds(10);                        //10 microsecond pulse
+  digitalWrite(garbage_trig, LOW);                      //deactivate the trig echo pin (input)
+
+  pulseTime = pulseIn(garbage_echo, HIGH, maxTime);     //reads a pulse (either HIGH or LOW) on echo. Returns the length of the pulse in microseconds
   dist = (float)pulseTime * 340 / 2 / 10000;    //calculate the object distance based on the pulse time
 
   return dist;
@@ -165,16 +198,43 @@ void stopMove() {
   lb.run(RELEASE);
 }
 
-void loop() {
+void collectGarbage() {
+  fan.setSpeed(motorSpeed);
+}
 
+void collectGarbage() {
+  fan.run(RELEASE);
+}
+
+//put your main code here, to run repeatedly:
+void loop() {
+  //forward();
+  // NewPing sonar(A1, A0, 100);
+  
   myServo.write(90);          //servo set at 90 degrees (points straight ahead)
   delay(750);
-
+  //Serial.print(4);
   int dist = getDistance();   //get current distance from obstacle
+  int garbageDist = getGarbageDistance();
+  //Serial.print(6);
+  //Serial.print(dist);
+  printf("distance: %d\n", dist);
+  // Serial.println(sonar.ping_cm());
 
   //moves forward if no objects are within stopping distance
-  if (dist >= stopDist) 
+  if (dist >= stopDist) {
     forward();
+
+    //collect garbage if garbage found within garbage collection radar
+    while (garbageDist <= stopGarbageDistance)) {
+         collectGarbage();
+    }
+
+    //otheriwise, stop collection garbage
+    stopGarbageCollection();
+
+  }
+
   //check until the minimum distance is reached
   while (dist >= stopDist) {
     dist = getDistance();
@@ -189,10 +249,10 @@ void loop() {
 
   switch(turnDirection) {
     case 0:
-      turnLeft(400); break;
+      turnLeft(1500); break;
     case 1:
-      turnLeft(700); break;
+      turnLeft(1500); break;
     case 2:
-      turnRight(400); break;
+      turnRight(1500); break;
   }
 }
